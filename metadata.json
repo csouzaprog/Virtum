@@ -1,0 +1,6 @@
+{
+  "name": "Gestão de Ferramentas Virtum",
+  "description": "Sistema de gestão de ferramentas para a Virtum Engenharia, projetado com base na norma POP-ALM-001 (Lean Manufacturing aplicado ao almoxarifado elétrico).",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
