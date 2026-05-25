@@ -1,0 +1,121 @@
+{
+  "entities": {
+    "Tool": {
+      "title": "Tool",
+      "description": "Represents an individual tool in the catalog",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "criticidade": { "type": "string" },
+        "address": { "type": "string" },
+        "storageInfo": { "type": "string" },
+        "status": { "type": "string" },
+        "acquisitionCost": { "type": "number" },
+        "replacementCost": { "type": "number" },
+        "lastMaintenanceDate": { "type": "string" },
+        "nextMaintenanceDate": { "type": "string" },
+        "serialNumber": { "type": "string" },
+        "brand": { "type": "string" },
+        "frequenciaUso": { "type": "string" }
+      },
+      "required": ["id", "name", "category", "criticidade", "address", "storageInfo", "status", "acquisitionCost", "replacementCost"]
+    },
+    "Cautela": {
+      "title": "Cautela",
+      "description": "Represents a checked out tool session",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "dateOut": { "type": "string" },
+        "timeOut": { "type": "string" },
+        "colaborador": { "type": "string" },
+        "matricula": { "type": "string" },
+        "obraDestino": { "type": "string" },
+        "status": { "type": "string" },
+        "expectedReturnDate": { "type": "string" },
+        "actualReturnDate": { "type": "string" },
+        "items": { "type": "array" }
+      },
+      "required": ["id", "dateOut", "timeOut", "colaborador", "matricula", "obraDestino", "status", "items", "expectedReturnDate"]
+    },
+    "MaintenanceItem": {
+      "title": "MaintenanceItem",
+      "description": "Represents a maintenance periodic scheduling item",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "toolId": { "type": "string" },
+        "toolName": { "type": "string" },
+        "category": { "type": "string" },
+        "criticidade": { "type": "string" },
+        "serviceType": { "type": "string" },
+        "frequencyDays": { "type": "number" },
+        "lastDate": { "type": "string" },
+        "dueDate": { "type": "string" },
+        "performedBy": { "type": "string" },
+        "notes": { "type": "string" }
+      },
+      "required": ["id", "toolId", "toolName", "category", "criticidade", "serviceType", "frequencyDays", "lastDate", "dueDate"]
+    },
+    "OcorrenciaNC": {
+      "title": "OcorrenciaNC",
+      "description": "Represents tool damage or loss occurrences",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "cautelaId": { "type": "string" },
+        "toolId": { "type": "string" },
+        "toolName": { "type": "string" },
+        "colaborador": { "type": "string" },
+        "date": { "type": "string" },
+        "type": { "type": "string" },
+        "description": { "type": "string" },
+        "estimatedCost": { "type": "number" },
+        "actionTaken": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "toolId", "toolName", "colaborador", "date", "type", "description", "estimatedCost", "actionTaken", "status"]
+    },
+    "InventarioItem": {
+      "title": "InventarioItem",
+      "description": "Represents physical count results for a tool",
+      "type": "object",
+      "properties": {
+        "toolId": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "address": { "type": "string" },
+        "qtySystem": { "type": "number" },
+        "qtyPhysical": { "type": "number" },
+        "difference": { "type": "number" },
+        "status": { "type": "string" },
+        "scannedAt": { "type": "string" }
+      },
+      "required": ["toolId", "name", "category", "address", "qtySystem", "qtyPhysical", "difference", "status"]
+    }
+  },
+  "firestore": {
+    "tools/{toolId}": {
+      "schema": "Tool",
+      "description": "Catalog of all available tools"
+    },
+    "cautelas/{cautelaId}": {
+      "schema": "Cautela",
+      "description": "Checkout history records"
+    },
+    "maintenance/{maintenanceId}": {
+      "schema": "MaintenanceItem",
+      "description": "Scheduled or completed maintenance items"
+    },
+    "ocorrencias/{ocorrenciaId}": {
+      "schema": "OcorrenciaNC",
+      "description": "Non-conformity and damage occurrences"
+    },
+    "inventory/{inventoryId}": {
+      "schema": "InventarioItem",
+      "description": "Physical count item statuses"
+    }
+  }
+}

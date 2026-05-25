@@ -1,0 +1,14 @@
+node_modules
+dist
+.git
+.github
+firebase-applet-config.json
+firebase-blueprint.json
+firestore.rules
+.firebaserc
+.env
+.env.production
+.env.local
+Dockerfile
+docker-compose.yml
+README.md

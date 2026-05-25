@@ -101,3 +101,13 @@ export interface InventarioReport {
   items: InventarioItem[];
   status: 'EM_ANDAMENTO' | 'FINALIZADO';
 }
+
+export interface AppUser {
+  email: string;
+  name: string;
+  matricula?: string;
+  role: 'ADMIN' | 'VISU';
+  sector?: string;
+  id?: string;
+}
+

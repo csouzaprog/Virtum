@@ -10,7 +10,8 @@ import {
   OcorrenciaNC, 
   MaintenanceItem, 
   InventarioItem, 
-  ToolStatus 
+  ToolStatus,
+  AppUser
 } from './types';
 import { 
   INITIAL_TOOLS, 
@@ -26,6 +27,7 @@ import CheckoutHistory from './components/CheckoutHistory';
 import MaintenancePlanner from './components/MaintenancePlanner';
 import NonConformityNC from './components/NonConformityNC';
 import PhysicalInventory from './components/PhysicalInventory';
+import LoginScreen from './components/LoginScreen';
 
 import { 
   LayoutDashboard, 
@@ -34,12 +36,39 @@ import {
   Wrench, 
   ClipboardList, 
   Boxes,
-  HelpCircle
+  HelpCircle,
+  LogOut,
+  UserCheck
 } from 'lucide-react';
+
+import { db } from './lib/firebase';
+import { collection, doc, setDoc, onSnapshot } from 'firebase/firestore';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<string>('Dashboard');
-  const [userRole, setUserRole] = useState<'ADMIN' | 'VISU'>('ADMIN');
+  const [currentUser, setCurrentUser] = useState<AppUser | null>(() => {
+    const cached = localStorage.getItem('virtum_user');
+    if (cached) {
+      try {
+        return JSON.parse(cached);
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  });
+  
+  const [userRole, setUserRole] = useState<'ADMIN' | 'VISU'>(() => {
+    const cached = localStorage.getItem('virtum_user');
+    if (cached) {
+      try {
+        return JSON.parse(cached).role;
+      } catch (e) {
+        return 'ADMIN';
+      }
+    }
+    return 'ADMIN';
+  });
 
   // Core Persistent States
   const [tools, setTools] = useState<Tool[]>([]);
@@ -48,69 +77,131 @@ export default function App() {
   const [maintenance, setMaintenance] = useState<MaintenanceItem[]>([]);
   const [inventory, setInventory] = useState<InventarioItem[]>([]);
 
-  // Seeding/Loading logic on load
+  // Real-time Cloud Synchronization & Seeding on Load
   useEffect(() => {
-    const localTools = localStorage.getItem('virtum_tools');
-    const localCautelas = localStorage.getItem('virtum_cautelas');
-    const localOcorrencias = localStorage.getItem('virtum_ocorrencias');
-    const localMaintenance = localStorage.getItem('virtum_maintenance');
-    const localInventory = localStorage.getItem('virtum_inventory');
+    // 1. Sync & Listen to Tools
+    const unsubscribeTools = onSnapshot(collection(db, 'tools'), (snapshot) => {
+      if (snapshot.empty) {
+        INITIAL_TOOLS.forEach((t) => {
+          setDoc(doc(db, 'tools', t.id), t).catch(console.error);
+        });
+      } else {
+        const loaded: Tool[] = [];
+        snapshot.forEach((doc) => loaded.push(doc.data() as Tool));
+        setTools(loaded.sort((a, b) => a.id.localeCompare(b.id)));
+      }
+    }, (error) => {
+      console.error("Firestore error subscribing to 'tools':", error);
+    });
 
-    if (localTools) setTools(JSON.parse(localTools));
-    else {
-      setTools(INITIAL_TOOLS);
-      localStorage.setItem('virtum_tools', JSON.stringify(INITIAL_TOOLS));
-    }
+    // 2. Sync & Listen to Cautelas (Checkouts)
+    const unsubscribeCautelas = onSnapshot(collection(db, 'cautelas'), (snapshot) => {
+      if (snapshot.empty) {
+        INITIAL_CAUTELAS.forEach((c) => {
+          setDoc(doc(db, 'cautelas', c.id), c).catch(console.error);
+        });
+      } else {
+        const loaded: Cautela[] = [];
+        snapshot.forEach((doc) => loaded.push(doc.data() as Cautela));
+        setCautelas(loaded.sort((a, b) => b.id.localeCompare(a.id)));
+      }
+    }, (error) => {
+      console.error("Firestore error subscribing to 'cautelas':", error);
+    });
 
-    if (localCautelas) setCautelas(JSON.parse(localCautelas));
-    else {
-      setCautelas(INITIAL_CAUTELAS);
-      localStorage.setItem('virtum_cautelas', JSON.stringify(INITIAL_CAUTELAS));
-    }
+    // 3. Sync & Listen to Ocorrencias (Non-conformities)
+    const unsubscribeOcorrencias = onSnapshot(collection(db, 'ocorrencias'), (snapshot) => {
+      if (snapshot.empty) {
+        INITIAL_OCS.forEach((o) => {
+          setDoc(doc(db, 'ocorrencias', o.id), o).catch(console.error);
+        });
+      } else {
+        const loaded: OcorrenciaNC[] = [];
+        snapshot.forEach((doc) => loaded.push(doc.data() as OcorrenciaNC));
+        setOcorrencias(loaded.sort((a, b) => b.id.localeCompare(a.id)));
+      }
+    }, (error) => {
+      console.error("Firestore error subscribing to 'ocorrencias':", error);
+    });
 
-    if (localOcorrencias) setOcorrencias(JSON.parse(localOcorrencias));
-    else {
-      setOcorrencias(INITIAL_OCS);
-      localStorage.setItem('virtum_ocorrencias', JSON.stringify(INITIAL_OCS));
-    }
+    // 4. Sync & Listen to Maintenance schedule
+    const unsubscribeMaintenance = onSnapshot(collection(db, 'maintenance'), (snapshot) => {
+      if (snapshot.empty) {
+        INITIAL_MAINTENANCE_SCHEDULE.forEach((m) => {
+          setDoc(doc(db, 'maintenance', m.id), m).catch(console.error);
+        });
+      } else {
+        const loaded: MaintenanceItem[] = [];
+        snapshot.forEach((doc) => loaded.push(doc.data() as MaintenanceItem));
+        setMaintenance(loaded.sort((a, b) => a.id.localeCompare(b.id)));
+      }
+    }, (error) => {
+      console.error("Firestore error subscribing to 'maintenance':", error);
+    });
 
-    if (localMaintenance) setMaintenance(JSON.parse(localMaintenance));
-    else {
-      setMaintenance(INITIAL_MAINTENANCE_SCHEDULE);
-      localStorage.setItem('virtum_maintenance', JSON.stringify(INITIAL_MAINTENANCE_SCHEDULE));
-    }
+    // 5. Sync & Listen to Inventory
+    const unsubscribeInventory = onSnapshot(collection(db, 'inventory'), (snapshot) => {
+      if (snapshot.empty) {
+        INITIAL_INVENTORY.forEach((i) => {
+          setDoc(doc(db, 'inventory', i.toolId), i).catch(console.error);
+        });
+      } else {
+        const loaded: InventarioItem[] = [];
+        snapshot.forEach((doc) => loaded.push(doc.data() as InventarioItem));
+        setInventory(loaded.sort((a, b) => a.toolId.localeCompare(b.toolId)));
+      }
+    }, (error) => {
+      console.error("Firestore error subscribing to 'inventory':", error);
+    });
 
-    if (localInventory) setInventory(JSON.parse(localInventory));
-    else {
-      setInventory(INITIAL_INVENTORY);
-      localStorage.setItem('virtum_inventory', JSON.stringify(INITIAL_INVENTORY));
-    }
+    return () => {
+      unsubscribeTools();
+      unsubscribeCautelas();
+      unsubscribeOcorrencias();
+      unsubscribeMaintenance();
+      unsubscribeInventory();
+    };
   }, []);
 
-  // Sync to localstorage helpers
+  // Sync state & Firestore persistence helpers
   const saveToolsState = (updatedTools: Tool[]) => {
     setTools(updatedTools);
     localStorage.setItem('virtum_tools', JSON.stringify(updatedTools));
+    updatedTools.forEach((t) => {
+      setDoc(doc(db, 'tools', t.id), t).catch(console.error);
+    });
   };
 
   const saveCautelasState = (updatedCautelas: Cautela[]) => {
     setCautelas(updatedCautelas);
     localStorage.setItem('virtum_cautelas', JSON.stringify(updatedCautelas));
+    updatedCautelas.forEach((c) => {
+      setDoc(doc(db, 'cautelas', c.id), c).catch(console.error);
+    });
   };
 
   const saveOcorrenciasState = (updatedOcorrencias: OcorrenciaNC[]) => {
     setOcorrencias(updatedOcorrencias);
     localStorage.setItem('virtum_ocorrencias', JSON.stringify(updatedOcorrencias));
+    updatedOcorrencias.forEach((o) => {
+      setDoc(doc(db, 'ocorrencias', o.id), o).catch(console.error);
+    });
   };
 
   const saveMaintenanceState = (updatedMaintenance: MaintenanceItem[]) => {
     setMaintenance(updatedMaintenance);
     localStorage.setItem('virtum_maintenance', JSON.stringify(updatedMaintenance));
+    updatedMaintenance.forEach((m) => {
+      setDoc(doc(db, 'maintenance', m.id), m).catch(console.error);
+    });
   };
 
   const saveInventoryState = (updatedInventory: InventarioItem[]) => {
     setInventory(updatedInventory);
     localStorage.setItem('virtum_inventory', JSON.stringify(updatedInventory));
+    updatedInventory.forEach((i) => {
+      setDoc(doc(db, 'inventory', i.toolId), i).catch(console.error);
+    });
   };
 
   // --- ACTIONS WORKFLOW COORDINATION ---
@@ -398,6 +489,21 @@ export default function App() {
     alert('Sessão de contagem restaurada com base nos dados do sistema atual!');
   };
 
+  const handleLoginSuccess = (user: AppUser) => {
+    setCurrentUser(user);
+    setUserRole(user.role);
+    localStorage.setItem('virtum_user', JSON.stringify(user));
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    localStorage.removeItem('virtum_user');
+  };
+
+  if (!currentUser) {
+    return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-800 antialiased flex flex-col">
       
@@ -448,30 +554,31 @@ export default function App() {
             ))}
           </nav>
 
-          {/* Role Access Level Toggler Widget */}
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-700 shadow-inner">
-              <span className="text-[9px] font-mono font-black text-slate-400 uppercase tracking-wider">Acesso:</span>
-              <select
-                value={userRole}
-                onChange={(e) => setUserRole(e.target.value as 'ADMIN' | 'VISU')}
-                className="bg-transparent text-[11px] font-bold text-white outline-none cursor-pointer border-none p-0 focus:ring-0 select-none font-sans"
-              >
-                <option value="ADMIN" className="bg-slate-900 text-white font-bold select-none text-xs">🛠 Admin (Total)</option>
-                <option value="VISU" className="bg-slate-900 text-white font-bold select-none text-xs">👁 Consultor (Leitura)</option>
-              </select>
+          {/* Active User Profile and Logout Header Widget */}
+          <div className="flex items-center gap-3">
+            <div className="flex flex-col text-right hidden sm:block">
+              <span className="text-xs font-bold text-white block truncate max-w-[150px]" title={currentUser.name}>
+                {currentUser.name}
+              </span>
+              <span className="text-[9px] text-slate-400 font-mono block uppercase">
+                {userRole === 'ADMIN' ? '🛠️ Administrador' : '👁️ Consulta'}
+              </span>
             </div>
-
-            <div className="text-[11px] font-mono text-slate-400 hidden xl:block">
-              SISTEMA ATIVO (ONLINE)
-            </div>
+            
+            <button
+              onClick={handleLogout}
+              className="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white p-2 rounded-lg border border-slate-700 transition cursor-pointer"
+              title="Sair do Sistema"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
 
         </div>
 
         {/* Mobile Navigation bar */}
         <div className="lg:hidden bg-slate-950 border-t border-slate-800 p-2 overflow-x-auto">
-          <div className="flex gap-1.5 justify-between items-center">
+          <div className="flex gap-2 justify-between items-center">
             <div className="flex gap-1.5 overflow-x-auto scrollbar-none">
               {[
                 { id: 'Dashboard', label: 'Painel', icon: <LayoutDashboard className="w-3.5 h-3.5" /> },
@@ -495,6 +602,14 @@ export default function App() {
                 </button>
               ))}
             </div>
+
+            <button
+              onClick={handleLogout}
+              className="bg-red-950/40 text-rose-400 p-2 rounded-md border border-red-900/40 shrink-0 transition cursor-pointer"
+              title="Sair"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
       </header>
